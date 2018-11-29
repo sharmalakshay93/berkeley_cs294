@@ -12,7 +12,7 @@ import torch.optim as optim
 def main(args):
     print('expert:', args['expert'])
     expert_data_path = os.path.join(os.getcwd(), 'expert_data', args['expert'] + '_expert.pkl')
-    data = Data(expert_data_path, train_ratio=args['train_ratio'], batch_size=args['batch_size'])
+    data = Data(expert_data_path, train_ratio=args['train_ratio'], batch_size=args['batch_size'], only_final_results=args['only_final_results'])
     train_data_loader, val_data_loader = data.get_train_val()
     bc_model = BCNet(data.input_dim, data.output_dim)
     optimizer = config_optimizer(args['optimizer'], args['lr'], bc_model)
@@ -21,11 +21,12 @@ def main(args):
                                         optimizer, 
                                         nn.MSELoss(), 
                                         train_data_loader, 
-                                        val_data_loader)
-    if args['show_plots']:
+                                        val_data_loader, 
+                                        only_final_results=args['only_final_results'])
+    if not args['only_final_results']:
         show_plots(train_losses, val_losses)
 
-    test_with_gym(bc_model, args['rollouts'], args['render'], data.expert_stats)
+    test_with_gym(bc_model, args, data.expert_stats, args['only_final_results'])
 
 def config_optimizer(optimizer, lr, model):
     if optimizer=='adam':
@@ -34,7 +35,7 @@ def config_optimizer(optimizer, lr, model):
         print('no valid keywork found for optimizer; setting to SGD')
         return optim.SGD(model.parameters(), lr=lr)
 
-def train(epochs, network, optimizer, loss_fn, train_loader, test_loader, testing=True):
+def train(epochs, network, optimizer, loss_fn, train_loader, test_loader, testing=True, only_final_results=False):
     assert (epochs >= 1), 'epochs must be a positive integer with value at least 1'
     train_losses = []
     val_losses = []
@@ -50,15 +51,15 @@ def train(epochs, network, optimizer, loss_fn, train_loader, test_loader, testin
             optimizer.step()
             training_step += 1
 
-            if (training_step % 40 == 0) or (training_step == 1) :
+            if (not only_final_results) and ((training_step % 40 == 0) or (training_step == 1)) :
                 print('Epoch {}; training step {} mse: {:.3f}'.format(epoch, training_step, loss.item()))
             
         if (testing):
-            val_losses.append(validate(network, test_loader, loss_fn))   
+            val_losses.append(validate(network, test_loader, loss_fn, only_final_results))   
             
     return train_losses, val_losses
 
-def validate(network, test_loader, loss_fn):
+def validate(network, test_loader, loss_fn, only_final_results):
     loss = 0
     steps = 0
     network.eval()
@@ -69,7 +70,8 @@ def validate(network, test_loader, loss_fn):
         steps += 1
         
     avg_loss = loss / steps
-    print('Test set mse: {:.3f}'.format(avg_loss))    
+    if not only_final_results:
+        print('Test set mse: {:.3f}'.format(avg_loss))    
     return avg_loss
 
 def show_plots(train_losses, val_losses):
@@ -84,16 +86,15 @@ def show_plots(train_losses, val_losses):
     plt.xlabel('epoch')
     plt.show()
 
-def test_with_gym(policy_fn, rollouts, render, expert_stats):
+def test_with_gym(policy_fn, args, expert_stats, only_final_results):
     gym.logger.set_level(40)
     random_seed=42
-    env = gym.make('Hopper-v2')
+    env = gym.make(args['expert'])
     env.seed(random_seed)
     max_steps = 1000
     returns = []
     
-    for i in range(rollouts):
-        print('iter', i)
+    for i in range(args['rollouts']):
         obs = env.reset()
         done = False
         totalr = 0.
@@ -105,13 +106,15 @@ def test_with_gym(policy_fn, rollouts, render, expert_stats):
             totalr += r
             steps += 1
             
-            if render:
+            if args['render']:
                 env.render()
-            if steps % 100 == 0: 
+            if (not only_final_results) and (steps % 100 == 0): 
                 print("%i/%i"%(steps, max_steps))
             if steps >= max_steps:
                 break
-        print('Number of steps in this rollout: {}'.format(steps))
+        if not only_final_results:
+            print('iter', i)
+            print('Number of steps in this rollout: {}'.format(steps))
         returns.append(totalr)
         
     print('bc_model: mean of return', np.mean(returns))
@@ -127,9 +130,9 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--optimizer', type=str, default='adam')
-    parser.add_argument('--show_plots', type=bool, default=True)
     parser.add_argument('--rollouts', type=int, default=10)
     parser.add_argument('--render', type=bool, default=False)
+    parser.add_argument('--only_final_results', type=bool, default=False)
     args = vars(parser.parse_args())
     main(args)
 

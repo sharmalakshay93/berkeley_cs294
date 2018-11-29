@@ -4,7 +4,7 @@ from sklearn.model_selection import train_test_split
 import torch.utils.data
 
 class Data:
-    def __init__(self, data_file, train_ratio=0.8, batch_size=100):
+    def __init__(self, data_file, train_ratio=0.8, batch_size=100, only_final_results=False):
         
         assert (train_ratio >= 0 and train_ratio <= 1), "train_ratio must be in the range (0,1)"
         
@@ -13,8 +13,9 @@ class Data:
         self.batch_size = batch_size
         data = pkl.load(open(data_file, "rb"))
         
-        print('Train/val split: {}/{:.3f}'.format(self.train_ratio, self.val_ratio))
-        self.X_train, self.X_val, self.y_train, self.y_val = self.split_data(data)
+        if not only_final_results:
+            print('Train/val split: {}/{:.3f}'.format(self.train_ratio, self.val_ratio))
+        self.X_train, self.X_val, self.y_train, self.y_val = self.split_data(data, only_final_results)
         
         self.input_dim = self.X_train.shape[1]
         self.output_dim = self.y_train.shape[1]
@@ -26,7 +27,7 @@ class Data:
         self.val_data_loader = torch.utils.data.DataLoader(val_dataset, batch_size=self.X_val.shape[0])
         self.expert_stats = data['returns']
 
-    def split_data(self, data):
+    def split_data(self, data, only_final_results):
         '''Split dataset into training and validation sets'''
         
         obs = data['observations']
@@ -34,11 +35,12 @@ class Data:
         
         X_train, X_val, y_train, y_val = \
          train_test_split(obs, actions, test_size=self.val_ratio, random_state=42)
-        print('splitting and shuffling data:')
-        print('X_train.shape', X_train.shape)
-        print('X_val.shape', X_val.shape)
-        print('y_train.shape', y_train.shape)
-        print('y_val.shape', y_val.shape)
+        if not only_final_results:
+            print('splitting and shuffling data:')
+            print('X_train.shape', X_train.shape)
+            print('X_val.shape', X_val.shape)
+            print('y_train.shape', y_train.shape)
+            print('y_val.shape', y_val.shape)
         return X_train, X_val, y_train, y_val
     
     def get_train_val(self):

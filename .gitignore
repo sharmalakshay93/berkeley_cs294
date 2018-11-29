@@ -105,3 +105,6 @@ venv.bak/
 
 # mac
 .DS_Store
+
+#expert data
+/hw1/behavioral_cloning/expert_data/*
