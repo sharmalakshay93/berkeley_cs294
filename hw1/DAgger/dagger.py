@@ -26,7 +26,8 @@ def main(args):
     train_data_loader, val_data_loader = data.get_train_val()
     steps_list, returns_list = run_dagger(args['expert'], args['dagger_iters'], data, args['epochs'], args['only_final_results'])
 
-    show_plots(steps_list, returns_list)
+    if (args['show_plots']):
+        show_plots(steps_list, returns_list)
 
     print('max steps: {}; in iteration {}'.format(np.max(np.asarray(steps_list)), np.argmax(np.asarray(steps_list))))
     print('max return: {:.4f}, in iteration {}'.format(np.max(np.asarray(returns_list)), np.argmax(np.asarray(returns_list))))
@@ -157,5 +158,6 @@ if __name__ == '__main__':
     parser.add_argument('--dagger_iters', type=int, default=200)
     parser.add_argument('--render', type=bool, default=False)
     parser.add_argument('--only_final_results', type=bool, default=False)
+    parser.add_argument('--show_plots', type=bool, default=False)
     args = vars(parser.parse_args())
     main(args)
